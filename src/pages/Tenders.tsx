@@ -155,7 +155,8 @@ export default function Tenders() {
     }
     setSearching(true);
     try {
-      const res = await firecrawlApi.search(searchQuery, [], 10);
+      const enhancedQuery = `${searchQuery.trim()} 招标公告`;
+      const res = await firecrawlApi.search(enhancedQuery, [], 10);
       if (!res.success) {
         toast({ title: '搜索失败', description: res.error, variant: 'destructive' });
         return;
@@ -347,7 +348,7 @@ export default function Tenders() {
           </h2>
           <div className="flex gap-2">
             <Input
-              placeholder="输入关键词搜索招标公告，例：智慧交通 监控系统"
+              placeholder="输入行业或项目关键词，例：学校 设计 扩建"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
