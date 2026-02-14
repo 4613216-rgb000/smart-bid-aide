@@ -9,7 +9,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { query, keywords, limit } = await req.json();
+    const { query, keywords, limit, siteUrls } = await req.json();
 
     if (!query) {
       return new Response(
@@ -33,6 +33,20 @@ Deno.serve(async (req) => {
     }
     if (keywords?.length > 0) {
       searchQuery = `${searchQuery} ${keywords.join(' ')}`;
+    }
+    // Restrict to configured site domains
+    if (siteUrls?.length > 0) {
+      const siteParts = siteUrls.map((u: string) => {
+        try {
+          const hostname = new URL(u).hostname;
+          return `site:${hostname}`;
+        } catch {
+          return '';
+        }
+      }).filter(Boolean);
+      if (siteParts.length > 0) {
+        searchQuery = `${searchQuery} ${siteParts.join(' OR ')}`;
+      }
     }
 
     console.log('Searching:', searchQuery);
