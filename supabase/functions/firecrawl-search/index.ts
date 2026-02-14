@@ -26,10 +26,13 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Build search query with keywords
+    // Auto-append "招标公告" to focus results on tenders
     let searchQuery = query;
+    if (!searchQuery.includes('招标')) {
+      searchQuery = `${query} 招标公告`;
+    }
     if (keywords?.length > 0) {
-      searchQuery = `${query} ${keywords.join(' ')}`;
+      searchQuery = `${searchQuery} ${keywords.join(' ')}`;
     }
 
     console.log('Searching:', searchQuery);
@@ -97,6 +100,7 @@ Deno.serve(async (req) => {
       if (aiResponse.ok) {
         const aiData = await aiResponse.json();
         const content = aiData.choices?.[0]?.message?.content || '[]';
+        console.log('AI raw response:', content.substring(0, 500));
         try {
           const jsonMatch = content.match(/\[[\s\S]*\]/);
           if (jsonMatch) {
