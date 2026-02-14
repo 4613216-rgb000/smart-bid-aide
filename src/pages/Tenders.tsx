@@ -153,19 +153,28 @@ export default function Tenders() {
       toast({ title: '请输入搜索关键词', variant: 'destructive' });
       return;
     }
+    const enabledConfigs = configs.filter(c => c.enabled);
+    if (enabledConfigs.length === 0) {
+      toast({ title: '请先添加并启用爬取源', variant: 'destructive' });
+      return;
+    }
     setSearching(true);
     try {
-      const enhancedQuery = `${searchQuery.trim()} 招标公告`;
-      const res = await firecrawlApi.search(enhancedQuery, [], 10);
-      if (!res.success) {
-        toast({ title: '搜索失败', description: res.error, variant: 'destructive' });
-        return;
+      const keywords = searchQuery.trim().split(/[,，\s]+/).filter(Boolean);
+      let allTenders: ParsedTender[] = [];
+
+      // Scrape each enabled config source with the search keywords
+      for (const config of enabledConfigs) {
+        const res = await firecrawlApi.scrape(config.url, keywords);
+        if (res.success && res.tenders && res.tenders.length > 0) {
+          allTenders = [...allTenders, ...res.tenders];
+        }
       }
-      const newTenders = res.tenders || [];
-      if (newTenders.length === 0) {
-        toast({ title: '未发现招标信息', description: '搜索未找到匹配的招标公告' });
+
+      if (allTenders.length === 0) {
+        toast({ title: '未发现招标信息', description: '在已配置的爬取源中未找到匹配的招标公告' });
       } else {
-        const rows = newTenders.map((t: ParsedTender) => ({
+        const rows = allTenders.map((t: ParsedTender) => ({
           title: t.title,
           client: t.client,
           industry: t.industry,
@@ -176,7 +185,7 @@ export default function Tenders() {
           status: 'new',
         }));
         await supabase.from('tenders').insert(rows);
-        toast({ title: `搜索发现 ${newTenders.length} 条招标信息` });
+        toast({ title: `在爬取源中发现 ${allTenders.length} 条招标信息` });
       }
       fetchData();
     } catch (e) {
@@ -348,7 +357,7 @@ export default function Tenders() {
           </h2>
           <div className="flex gap-2">
             <Input
-              placeholder="输入行业或项目关键词，例：学校 设计 扩建"
+              placeholder="输入关键词在已配置的爬取源中搜索，例：学校 设计 扩建"
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
