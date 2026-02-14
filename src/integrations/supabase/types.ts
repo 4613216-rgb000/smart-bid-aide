@@ -14,7 +14,95 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      crawl_configs: {
+        Row: {
+          created_at: string
+          enabled: boolean
+          id: string
+          keywords: string[]
+          last_crawled_at: string | null
+          name: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keywords?: string[]
+          last_crawled_at?: string | null
+          name: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          enabled?: boolean
+          id?: string
+          keywords?: string[]
+          last_crawled_at?: string | null
+          name?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
+      }
+      tenders: {
+        Row: {
+          budget: string | null
+          client: string | null
+          crawl_config_id: string | null
+          created_at: string
+          deadline: string | null
+          id: string
+          industry: string | null
+          raw_content: string | null
+          requirements: string | null
+          source_url: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          budget?: string | null
+          client?: string | null
+          crawl_config_id?: string | null
+          created_at?: string
+          deadline?: string | null
+          id?: string
+          industry?: string | null
+          raw_content?: string | null
+          requirements?: string | null
+          source_url?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          budget?: string | null
+          client?: string | null
+          crawl_config_id?: string | null
+          created_at?: string
+          deadline?: string | null
+          id?: string
+          industry?: string | null
+          raw_content?: string | null
+          requirements?: string | null
+          source_url?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tenders_crawl_config_id_fkey"
+            columns: ["crawl_config_id"]
+            isOneToOne: false
+            referencedRelation: "crawl_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
