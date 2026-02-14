@@ -160,19 +160,23 @@ export default function Tenders() {
     }
     setSearching(true);
     try {
-      const keywords = searchQuery.trim().split(/[,，\s]+/).filter(Boolean);
       let allTenders: ParsedTender[] = [];
 
-      // Scrape each enabled config source with the search keywords
+      // Search using each enabled config's name as context for site-specific results
       for (const config of enabledConfigs) {
-        const res = await firecrawlApi.scrape(config.url, keywords);
+        const enhancedQuery = `${searchQuery.trim()} 招标公告 ${config.name}`;
+        const res = await firecrawlApi.search(enhancedQuery, config.keywords, 10);
         if (res.success && res.tenders && res.tenders.length > 0) {
-          allTenders = [...allTenders, ...res.tenders];
+          const tendersWithConfig = res.tenders.map(t => ({
+            ...t,
+            source_url: t.source_url || config.url,
+          }));
+          allTenders = [...allTenders, ...tendersWithConfig];
         }
       }
 
       if (allTenders.length === 0) {
-        toast({ title: '未发现招标信息', description: '在已配置的爬取源中未找到匹配的招标公告' });
+        toast({ title: '未发现招标信息', description: '在已配置的爬取源范围内未找到匹配的招标公告' });
       } else {
         const rows = allTenders.map((t: ParsedTender) => ({
           title: t.title,
@@ -185,7 +189,7 @@ export default function Tenders() {
           status: 'new',
         }));
         await supabase.from('tenders').insert(rows);
-        toast({ title: `在爬取源中发现 ${allTenders.length} 条招标信息` });
+        toast({ title: `在爬取源范围内发现 ${allTenders.length} 条招标信息` });
       }
       fetchData();
     } catch (e) {
