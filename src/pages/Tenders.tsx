@@ -12,7 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { firecrawlApi, type ParsedTender } from '@/lib/api/firecrawl';
 import { projectStore } from '@/lib/store';
 import {
-  Plus, Search, Settings2, Globe, Loader2, Check, X, RefreshCw, ExternalLink,
+  Plus, Search, Settings2, Globe, Loader2, Check, X, RefreshCw, ExternalLink, SearchCheck,
 } from 'lucide-react';
 
 type CrawlConfig = {
@@ -47,6 +47,8 @@ export default function Tenders() {
   const [scraping, setScraping] = useState<string | null>(null);
   const [showConfigDialog, setShowConfigDialog] = useState(false);
   const [configForm, setConfigForm] = useState({ name: '', url: '', keywords: '' });
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searching, setSearching] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -95,17 +97,33 @@ export default function Tenders() {
   const handleScrape = async (config: CrawlConfig) => {
     setScraping(config.id);
     try {
-      const res = await firecrawlApi.scrape(config.url, config.keywords);
-      if (!res.success) {
-        toast({ title: '抓取失败', description: res.error, variant: 'destructive' });
-        return;
+      // Try scrape first
+      let res = await firecrawlApi.scrape(config.url, config.keywords);
+      let newTenders = res.tenders || [];
+
+      // If scrape returned no results, fallback to search
+      if (res.success && newTenders.length === 0) {
+        const searchQ = `${config.name} 招标公告 ${config.keywords.join(' ')}`.trim();
+        const searchRes = await firecrawlApi.search(searchQ, config.keywords, 10);
+        if (searchRes.success) {
+          newTenders = searchRes.tenders || [];
+        }
       }
 
-      const newTenders = res.tenders || [];
+      if (!res.success) {
+        // Direct scrape failed, try search as fallback
+        const searchQ = `${config.name} 招标公告 ${config.keywords.join(' ')}`.trim();
+        const searchRes = await firecrawlApi.search(searchQ, config.keywords, 10);
+        if (!searchRes.success) {
+          toast({ title: '抓取失败', description: searchRes.error, variant: 'destructive' });
+          return;
+        }
+        newTenders = searchRes.tenders || [];
+      }
+
       if (newTenders.length === 0) {
-        toast({ title: '未发现招标信息', description: '该页面未找到匹配的招标公告' });
+        toast({ title: '未发现招标信息', description: '未找到匹配的招标公告' });
       } else {
-        // Insert tenders
         const rows = newTenders.map((t: ParsedTender) => ({
           title: t.title,
           client: t.client,
@@ -113,7 +131,7 @@ export default function Tenders() {
           budget: t.budget,
           deadline: t.deadline,
           requirements: t.requirements,
-          source_url: res.sourceUrl,
+          source_url: t.source_url || res.sourceUrl || config.url,
           crawl_config_id: config.id,
           status: 'new',
         }));
@@ -121,13 +139,49 @@ export default function Tenders() {
         toast({ title: `发现 ${newTenders.length} 条招标信息` });
       }
 
-      // Update last crawled time
       await supabase.from('crawl_configs').update({ last_crawled_at: new Date().toISOString() }).eq('id', config.id);
       fetchData();
     } catch (e) {
       toast({ title: '抓取出错', description: String(e), variant: 'destructive' });
     } finally {
       setScraping(null);
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      toast({ title: '请输入搜索关键词', variant: 'destructive' });
+      return;
+    }
+    setSearching(true);
+    try {
+      const res = await firecrawlApi.search(searchQuery, [], 10);
+      if (!res.success) {
+        toast({ title: '搜索失败', description: res.error, variant: 'destructive' });
+        return;
+      }
+      const newTenders = res.tenders || [];
+      if (newTenders.length === 0) {
+        toast({ title: '未发现招标信息', description: '搜索未找到匹配的招标公告' });
+      } else {
+        const rows = newTenders.map((t: ParsedTender) => ({
+          title: t.title,
+          client: t.client,
+          industry: t.industry,
+          budget: t.budget,
+          deadline: t.deadline,
+          requirements: t.requirements,
+          source_url: t.source_url,
+          status: 'new',
+        }));
+        await supabase.from('tenders').insert(rows);
+        toast({ title: `搜索发现 ${newTenders.length} 条招标信息` });
+      }
+      fetchData();
+    } catch (e) {
+      toast({ title: '搜索出错', description: String(e), variant: 'destructive' });
+    } finally {
+      setSearching(false);
     }
   };
 
@@ -284,7 +338,29 @@ export default function Tenders() {
         )}
       </div>
 
-      {/* New Tenders */}
+      {/* Quick Search */}
+      <Card>
+        <CardContent className="p-4">
+          <h2 className="text-sm font-semibold mb-2 flex items-center gap-2">
+            <SearchCheck className="h-4 w-4" />
+            快速搜索招标信息
+          </h2>
+          <div className="flex gap-2">
+            <Input
+              placeholder="输入关键词搜索招标公告，例：智慧交通 监控系统"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleSearch()}
+              className="flex-1"
+            />
+            <Button onClick={handleSearch} disabled={searching} className="gap-1">
+              {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              搜索
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       <div>
         <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
           <Search className="h-4 w-4" />
